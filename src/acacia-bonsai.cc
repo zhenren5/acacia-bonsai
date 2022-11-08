@@ -60,7 +60,8 @@ enum {
   OPT_INPUT = 'i',
   OPT_OUTPUT = 'o',
   OPT_CHECK = 'c',
-  OPT_VERBOSE = 'v'
+  OPT_VERBOSE = 'v',
+  OPT_NEGATIVE= 'N' 
 } ;
 
 enum unreal_x_t {
@@ -95,6 +96,11 @@ static const argp_option options[] = {
   {
     "Kinc", OPT_Kinc, "VAL", 0,
     "increment value for K, used when Kmin < K", 0
+  },
+  {
+    "negative", OPT_NEGATIVE, "PROPS", 0,
+    "semicolon-separated list of negative examples"
+    " propositions", 0
   },
   {
     "unreal-x", OPT_UNREAL_X, "[formula|automaton|both]", 0,
@@ -144,6 +150,7 @@ Exit status:\n\
 static std::vector<std::string> input_aps;
 static std::vector<std::string> output_aps;
 
+static std::vector<std::string> negative_aps;
 
 enum {
   CHECK_REAL,
@@ -174,13 +181,16 @@ namespace {
       spot::translator &trans_;
       std::vector<std::string> input_aps_;
       std::vector<std::string> output_aps_;
+      std::vector<std::string> negative_aps_;
 
     public:
 
       ltl_processor (spot::translator &trans,
                      std::vector<std::string> input_aps_,
-                     std::vector<std::string> output_aps_)
-        : trans_ (trans), input_aps_ (input_aps_), output_aps_ (output_aps_) {
+                     std::vector<std::string> output_aps_,
+                     std::vector<std::string> negative_aps_
+                     )
+        : trans_ (trans), input_aps_ (input_aps_), output_aps_ (output_aps_),negative_aps_(negative_aps_)  {
       }
 
       using aut_t = decltype (trans_.run (spot::formula::ff ()));
@@ -256,15 +266,35 @@ namespace {
           input_aps_.swap (output_aps_);
         }
 
-	verb_do (1, vout << "Formula: " << f << std::endl);
+  verb_do (1, vout << "Formula: " << f << std::endl);
 
         auto aut = trans_.run (&f);
+        //print UCB
+        spot::print_hoa(std::cout,aut,nullptr);
+        std::cout<<std::endl;
+
+        //transform UCB to add negative examples
+        if(!negative_aps_.empty()){
+          transform_ucb(aut);
+          std::cout<<"After transformation"<<std::endl;
+          spot::print_hoa(std::cout,aut,nullptr);
+          std::cout<<std::endl;
+          //add new branches
+
+          add_negative_branches(aut);
+          std::cout<<"After adding branches"<<std::endl;
+          spot::print_hoa(std::cout,aut,nullptr);
+          std::cout<<std::endl;
+        }
+        
+
+        
 
         // Create BDDs for the input and output AP.
         bdd all_inputs = bddtrue;
         bdd all_outputs = bddtrue;
         for (const auto& ap_i : input_aps_)
-        {
+        { 
           unsigned v = aut->register_ap (spot::formula::ap(ap_i));
           all_inputs &= bdd_ithvar(v);
         }
@@ -362,7 +392,7 @@ namespace {
 
         vectors::bitset_threshold = aut->num_states () - nbitsetbools;
 
-	utils::vout << "Bitset threshold set at " << vectors::bitset_threshold << "\n";
+  utils::vout << "Bitset threshold set at " << vectors::bitset_threshold << "\n";
 
 #define UNREACHABLE [] (int x) { assert (false); }
 
@@ -415,6 +445,71 @@ namespace {
 
       int process_formula (spot::formula f, const char *, int) override {
         return solve_formula (f);
+      }
+
+      void transform_ucb (aut_t& aut){
+          unsigned new_ini=aut->num_states ();
+          unsigned old_ini=aut->get_init_state_number();
+          aut->new_state();
+          for (auto& e : aut->out (old_ini)) {
+            aut->new_edge (new_ini,e.dst,e.cond, e.acc);
+          }
+          aut -> set_init_state( new_ini );
+      }
+
+
+      void example_parse(std::vector<std::vector<std::string>>& trace, std::string& ios){
+        size_t pos=0;
+        std::vector<std::string> io;
+        std::string token;
+        while ((pos = ios.find(',')) != std::string::npos) {
+          token= ios.substr(0,pos);
+          token.erase (remove_if (token.begin(), token.end(), isspace), token.end());
+          io.push_back (token);
+          ios.erase(0, pos + 1);
+        }
+        ios.erase (remove_if (ios.begin(), ios.end(), isspace), ios.end());
+        io.push_back (ios);
+        trace.push_back(io);
+      }
+
+      void add_negative_branches (aut_t &aut){
+        std::string move;
+        std::vector<std::vector<std::string>> trace;
+        for ( const std::string& example : negative_aps_ )
+        { 
+          std::stringstream ex(example); 
+          trace.clear();
+          while ( std::getline (ex, move, '#')) {
+              unsigned input_begin = move.find('{');
+              unsigned input_end = move.find('}');
+              std::string strNew = move.substr(input_begin+1,input_end-input_begin-1);
+              example_parse(trace, strNew);
+              strNew = move.substr(input_end+2,move.length()-input_end-3);
+              example_parse(trace, strNew);
+        }
+        add_branch(aut, trace);
+        }
+      }
+
+      void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
+        unsigned root = aut->get_init_state_number();
+        for(unsigned int i = 0; i < trace.size(); i++){
+          bdd res=bddtrue;
+          for(unsigned int j = 0; j < trace[i].size(); j++){
+            if (trace[i][j][0]=='!'){
+              res = res & bdd_nithvar(aut->register_ap(trace[i][j].substr(1,trace[i][j].size()-1)));
+            }
+            else{
+              res = res & bdd_ithvar(aut->register_ap(trace[i][j]));
+            }
+          }
+          unsigned dst = aut->new_state();
+          aut->new_edge (root,dst,res);
+          root = dst;
+        }
+        //last state will loop on itself
+        aut->new_acc_edge (root,root,bddtrue);
       }
 
   };
@@ -502,6 +597,18 @@ parse_opt (int key, char *arg, struct argp_state *) {
       break;
     }
 
+    case OPT_NEGATIVE: {
+      std::istringstream aps (arg);
+      std::string ap;
+
+      while (std::getline (aps, ap, ';')) {
+        ap.erase (remove_if (ap.begin (), ap.end (), isspace), ap.end ());
+        negative_aps.push_back (ap);
+      }
+
+      break;
+    }
+
     case 'x': {
       const char *opt = extra_options.parse_options (arg);
 
@@ -552,7 +659,14 @@ int main (int argc, char **argv) {
     // not measured in our timings.
     spot::bdd_dict_ptr dict = spot::make_bdd_dict ();
     spot::translator trans (dict, &extra_options);
-    ltl_processor processor (trans, input_aps, output_aps);
+    ltl_processor processor (trans, input_aps, output_aps,negative_aps);
+
+    //
+    /*for (size_t i = 0; i < negative_aps.size(); i++)
+    {
+      std::cout<<negative_aps[i]<<std::endl;
+    }*/
+    
 
     // Diagnose unused -x options
     extra_options.report_unused_options ();

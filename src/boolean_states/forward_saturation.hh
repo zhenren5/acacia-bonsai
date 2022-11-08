@@ -66,6 +66,11 @@ namespace boolean_states {
               rename[src] = nunbounded + bounded++;
             }
 
+          std::cout<<"initial state: "<< rename[aut->get_init_state_number()]<<std::endl;
+          for (int i =0; i < aut->num_states (); ++i){
+            std::cout<<rename[i]<<std::endl;
+          }
+
           assert (unbounded == nunbounded);
 
           verb_do (1, vout << "Bounded states: " << bounded << " / "
