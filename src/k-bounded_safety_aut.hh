@@ -89,13 +89,15 @@ class k_bounded_safety_aut_detail {
         verb_do (1, vout << "Loop# " << loopcount << ", F of size " << F.size () << std::endl);
 
         auto&& input = input_picker (F);
-        if (not input.has_value ()) {// No more inputs, and we just tested that init was present
+        if (not input.has_value ()) {
+          std::cout<< "ANTICHAIN" << std::endl;// No more inputs, and we just tested that init was present
           F.apply ([&] (const State& s) {
             auto vec = utils::vector_mm<char> (s.size (), 0);
             //print antichain
-            verb_do (0, vout << "antichain: "<<s << std::endl);
+            std::cout<<s << std::endl;
             return State(vec);
           });
+          std::cout<< "ANTICHAINEND" << std::endl;
           return true;}
 
         cpre_inplace (F, *input, actioner);

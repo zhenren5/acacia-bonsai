@@ -61,7 +61,8 @@ enum {
   OPT_OUTPUT = 'o',
   OPT_CHECK = 'c',
   OPT_VERBOSE = 'v',
-  OPT_NEGATIVE= 'N' 
+  OPT_NEGATIVE= 'N',
+  OPT_BRANCH = 'B'
 } ;
 
 enum unreal_x_t {
@@ -96,6 +97,10 @@ static const argp_option options[] = {
   {
     "Kinc", OPT_Kinc, "VAL", 0,
     "increment value for K, used when Kmin < K", 0
+  },
+  {
+    "branch", OPT_BRANCH, "[true|false]", 0,
+    "the way to add negative examples; By adding a branch or transforming the LTL formula", 0
   },
   {
     "negative", OPT_NEGATIVE, "PROPS", 0,
@@ -161,6 +166,9 @@ enum {
 static auto opt_unreal_x = DEFAULT_UNREAL_X;
 
 static bool check_real = true;
+
+static bool opt_branch = true;
+
 static unsigned opt_K = DEFAULT_K,
   opt_Kmin = DEFAULT_KMIN, opt_Kinc = DEFAULT_KINC;
 static spot::option_map extra_options;
@@ -230,6 +238,17 @@ namespace {
         return ret;
       }
 
+      std::string join(std::vector<std::string> const &strings, std::string delim){
+        if (strings.empty()) {
+          return std::string();
+        }
+        return std::accumulate(strings.begin() + 1, strings.end(), strings[0],
+          [&delim](std::string x, std::string y) {
+          return x + delim + y;
+          }
+          );
+      }
+
       bool solve_formula (spot::formula f) {
         spot::process_timer timer;
         timer.start ();
@@ -246,6 +265,16 @@ namespace {
 
         if (want_time)
           sw.start ();
+
+
+        if(!opt_branch) conjuction_examples(f);
+        /*std::string s= "((r0 & grant0 & grant1) & X(!r0))->(grant0)";
+        spot::formula test = spot::parse_formula(s);
+        std::cout << "before test: " << test << '\n';
+        std::cout << "f: " << f << '\n';
+        test = spot::formula::And(std::vector<spot::formula> {f, test});
+        std::cout << "after test: " << test << '\n';*/
+        
 
         ////////////////////////////////////////////////////////////////////////
         // Translate the formula to a UcB (Universal co-Büchi)
@@ -267,26 +296,19 @@ namespace {
         }
 
   verb_do (1, vout << "Formula: " << f << std::endl);
-
         auto aut = trans_.run (&f);
         //print UCB
-        spot::print_hoa(std::cout,aut,nullptr);
-        std::cout<<std::endl;
+        //spot::print_hoa(std::cout,aut,nullptr);
+        //std::cout<<std::endl;
 
         //transform UCB to add negative examples
-        if(!negative_aps_.empty()){
-          transform_ucb(aut);
-          std::cout<<"After transformation"<<std::endl;
-          spot::print_hoa(std::cout,aut,nullptr);
-          std::cout<<std::endl;
-          //add new branches
+        if(opt_branch && !negative_aps_.empty()){
+          std::cout<<"branch "<<std::endl;
 
+          transform_ucb(aut);
+          //add new branches
           add_negative_branches(aut);
-          std::cout<<"After adding branches"<<std::endl;
-          spot::print_hoa(std::cout,aut,nullptr);
-          std::cout<<std::endl;
         }
-        
 
         
 
@@ -352,6 +374,11 @@ namespace {
           utils::vout << "Computation of boolean states in " << boolean_states_time
             /*     */ << "seconds , found " << vectors::bool_threshold << " nonboolean states.\n";
         }
+
+        std::cout<< "AUTOMATA"<<std::endl;
+        spot::print_hoa(std::cout, aut, nullptr);
+        std::cout<<std::endl;
+        std::cout<< "AUTOMATAEND" <<std::endl;
 
         // Special case: only boolean states, so... no useful accepting state.
         if (vectors::bool_threshold == 0) {
@@ -457,7 +484,10 @@ namespace {
           aut -> set_init_state( new_ini );
       }
 
-
+      /*
+      given a trace and a set of inputs or outputs separeted by comma ',', 
+      split it and push each input or output in the vector trace
+      */
       void example_parse(std::vector<std::vector<std::string>>& trace, std::string& ios){
         size_t pos=0;
         std::vector<std::string> io;
@@ -473,40 +503,85 @@ namespace {
         trace.push_back(io);
       }
 
-      void add_negative_branches (aut_t &aut){
+      void get_trace(std::vector<std::vector<std::string>>& trace, const std::string& example){
         std::string move;
+        std::stringstream ex(example); 
+        while ( std::getline (ex, move, '#')) {// for pair {inputs}{ouputs}
+            unsigned input_begin = move.find('{');
+            unsigned input_end = move.find('}');
+            std::string strNew = move.substr(input_begin+1,input_end-input_begin-1);
+            example_parse(trace, strNew);
+            strNew = move.substr(input_end+2,move.length()-input_end-3);
+            example_parse(trace, strNew);
+        }
+      }
+
+      void conjuction_examples (spot::formula& f){
+        std::vector<std::vector<std::string>> trace;
+        for ( const std::string& example : negative_aps_ )
+        { 
+          trace.clear();
+          get_trace(trace, example);
+          std::string formula_str = "";
+          for(unsigned int i = 0; i < trace.size()-1; i++){//the ast is different
+            if(i%2==0){
+              formula_str +="(";
+              formula_str +=std::string(i/2, 'X');// add NEXT operator
+            }
+            else{formula_str += " & ";} 
+            formula_str += "("+join(trace[i], " & ")+")";
+            if( i== trace.size()-2 ) {formula_str +=")";}
+            else if(i%2!=0) {formula_str +=") & ";}
+          }
+          formula_str = "(" + formula_str +") -> !(" + std::string((trace.size()-1)/2, 'X')+ join(trace[trace.size()-1], " & ") +")";
+          spot::formula formula = spot::parse_formula(formula_str);
+          std::cout << "before formula: " << formula << '\n';
+          std::cout << "f: " << f << '\n';
+          f = spot::formula::And(std::vector<spot::formula> {f, formula});
+          std::cout << "after formula: " << f << '\n';
+      }
+    }
+
+      void add_negative_branches (aut_t &aut){
         std::vector<std::vector<std::string>> trace;
         for ( const std::string& example : negative_aps_ )
         { 
           std::stringstream ex(example); 
           trace.clear();
-          while ( std::getline (ex, move, '#')) {
-              unsigned input_begin = move.find('{');
-              unsigned input_end = move.find('}');
-              std::string strNew = move.substr(input_begin+1,input_end-input_begin-1);
-              example_parse(trace, strNew);
-              strNew = move.substr(input_end+2,move.length()-input_end-3);
-              example_parse(trace, strNew);
-        }
-        add_branch(aut, trace);
+          get_trace(trace,example);
+          add_branch(aut, trace);
         }
       }
 
       void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
         unsigned root = aut->get_init_state_number();
-        for(unsigned int i = 0; i < trace.size(); i++){
+        std::vector<std::string> io;
+        bool exist = false;
+        for(unsigned int i = 0; i < trace.size()-1; i+=2){
           bdd res=bddtrue;
-          for(unsigned int j = 0; j < trace[i].size(); j++){
-            if (trace[i][j][0]=='!'){
-              res = res & bdd_nithvar(aut->register_ap(trace[i][j].substr(1,trace[i][j].size()-1)));
+          io=trace[i];
+          io.insert(io.end(), trace[i+1].begin(), trace[i+1].end()); //combine input and ouput
+          for(unsigned int j = 0; j < io.size(); j++){
+            if (io[j][0]=='!'){
+              res = res & bdd_nithvar(aut->register_ap(io[j].substr(1,io[j].size()-1)));
             }
             else{
-              res = res & bdd_ithvar(aut->register_ap(trace[i][j]));
+              res = res & bdd_ithvar(aut->register_ap(io[j]));
             }
           }
-          unsigned dst = aut->new_state();
-          aut->new_edge (root,dst,res);
-          root = dst;
+
+          for (auto& e : aut->out (root)) { //avoid repetition prefix
+            if(e.cond == res) {
+              root = e.dst;
+              exist = true;
+            }
+          }
+          if (! exist){
+            unsigned dst = aut->new_state();
+            aut->new_edge (root,dst,res);
+            root = dst;
+          }
+          else exist = false;
         }
         //last state will loop on itself
         aut->new_acc_edge (root,root,bddtrue);
@@ -597,6 +672,17 @@ parse_opt (int key, char *arg, struct argp_state *) {
       break;
     }
 
+    case OPT_BRANCH: {
+      boost::algorithm::to_lower (arg);
+      if (arg == "true"sv)
+        opt_branch = true;
+      else if (arg == "false"sv)
+        opt_branch = false;
+      else
+        error (3, 0, "Should specify true, or false.");
+      break;
+    }
+
     case OPT_NEGATIVE: {
       std::istringstream aps (arg);
       std::string ap;
@@ -660,13 +746,6 @@ int main (int argc, char **argv) {
     spot::bdd_dict_ptr dict = spot::make_bdd_dict ();
     spot::translator trans (dict, &extra_options);
     ltl_processor processor (trans, input_aps, output_aps,negative_aps);
-
-    //
-    /*for (size_t i = 0; i < negative_aps.size(); i++)
-    {
-      std::cout<<negative_aps[i]<<std::endl;
-    }*/
-    
 
     // Diagnose unused -x options
     extra_options.report_unused_options ();
