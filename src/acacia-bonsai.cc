@@ -49,6 +49,7 @@
 #include <spot/twaalgos/split.hh>
 #include <spot/twaalgos/toparity.hh>
 #include <spot/twaalgos/hoa.hh>
+#include <spot/twa/bdddict.hh>
 
 using namespace std::literals;
 
@@ -301,13 +302,11 @@ namespace {
         //spot::print_hoa(std::cout,aut,nullptr);
         //std::cout<<std::endl;
 
+
         //transform UCB to add negative examples
         if(opt_branch && !negative_aps_.empty()){
-          std::cout<<"branch "<<std::endl;
-
           transform_ucb(aut);
           //add new branches
-          add_negative_branches(aut);
         }
 
         
@@ -552,8 +551,7 @@ namespace {
           add_branch(aut, trace);
         }
       }
-
-      void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
+      /*void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
         unsigned root = aut->get_init_state_number();
         std::vector<std::string> io;
         bool exist = false;
@@ -568,6 +566,39 @@ namespace {
             else{
               res = res & bdd_ithvar(aut->register_ap(io[j]));
             }
+          }
+
+          for (auto& e : aut->out (root)) { //avoid repetition prefix
+            if(e.cond == res) {
+              root = e.dst;
+              exist = true;
+            }
+          }
+          if (! exist){
+            unsigned dst = aut->new_state();
+            aut->new_edge (root,dst,res);
+            root = dst;
+          }
+          else exist = false;
+        }
+        //last state will loop on itself
+        aut->new_acc_edge (root,root,bddtrue);
+      }*/ 
+      
+      //trace=[[i1,i2,...],[o1,o2,o3,...],[i,...],[o,....]]
+      void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
+        unsigned root = aut->get_init_state_number();
+        std::vector<std::string> io;
+        bool exist = false;
+        bdd b;
+        for(unsigned int i = 0; i < trace.size()-1; i+=2){
+          bdd res=bddtrue;
+          io=trace[i];
+          io.insert(io.end(), trace[i+1].begin(), trace[i+1].end()); //combine input and ouput
+          for(unsigned int j = 0; j < io.size(); j++){
+            spot::formula formula = spot::parse_formula(io[j]);
+            b = formula_to_bdd(formula, aut->get_dict(), aut);
+            res = res & b;
           }
 
           for (auto& e : aut->out (root)) { //avoid repetition prefix
