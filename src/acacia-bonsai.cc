@@ -99,7 +99,7 @@ static const argp_option options[] = {
     "Kinc", OPT_Kinc, "VAL", 0,
     "increment value for K, used when Kmin < K", 0
   },
-  {
+  {//if branch is true we add branch otherwise we transform LTL formula
     "branch", OPT_BRANCH, "[true|false]", 0,
     "the way to add negative examples; By adding a branch or transforming the LTL formula", 0
   },
@@ -527,11 +527,12 @@ namespace {
             if(i%2==0){
               formula_str +="(";
               formula_str +=std::string(i/2, 'X');// add NEXT operator
+              formula_str += "(";
             }
             else{formula_str += " & ";} 
-            formula_str += "("+join(trace[i], " & ")+")";
-            if( i== trace.size()-2 ) {formula_str +=")";}
-            else if(i%2!=0) {formula_str +=") & ";}
+            formula_str += join(trace[i], " & ");
+            if( i== trace.size()-2 ) {formula_str +="))";}
+            else if(i%2!=0) {formula_str +=")) & ";}
           }
           formula_str = "(" + formula_str +") -> !(" + std::string((trace.size()-1)/2, 'X')+ join(trace[trace.size()-1], " & ") +")";
           spot::formula formula = spot::parse_formula(formula_str);
@@ -546,7 +547,7 @@ namespace {
         std::vector<std::vector<std::string>> trace;
         for ( const std::string& example : negative_aps_ )
         { 
-          std::stringstream ex(example); 
+          //std::stringstream ex(example); 
           trace.clear();
           get_trace(trace,example);
           add_branch(aut, trace);
@@ -569,8 +570,6 @@ namespace {
             res = res & b;
           }
           for (auto& e : aut->out (root)) { //avoid repetition prefix
-            std::cout<<'res: '<<res<<std::endl;
-            std::cout<<'e: '<<e.cond<<std::endl;
             if(e.cond == res) {
               root = e.dst;
               exist = true;
@@ -586,7 +585,6 @@ namespace {
         //last state will loop on itself
         aut->new_acc_edge (root,root,bddtrue);
       }
-
   };
 }
 
