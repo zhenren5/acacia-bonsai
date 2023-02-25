@@ -573,6 +573,7 @@ namespace {
             if(e.cond == res) {
               root = e.dst;
               exist = true;
+              break;
             }
           }
           if (! exist){
