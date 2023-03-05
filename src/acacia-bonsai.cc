@@ -22,6 +22,8 @@
 
 #include "k-bounded_safety_aut.hh"
 
+#include "example_hints.hh"
+
 #include "vectors.hh"
 #include "downsets.hh"
 #include "utils/static_switch.hh"
@@ -53,7 +55,8 @@
 
 using namespace std::literals;
 
-enum {
+enum
+{
   OPT_K = 'K',
   OPT_Kmin = 'M',
   OPT_Kinc = 'I',
@@ -62,88 +65,78 @@ enum {
   OPT_OUTPUT = 'o',
   OPT_CHECK = 'c',
   OPT_VERBOSE = 'v',
-  OPT_NEGATIVE= 'N',
-  OPT_BRANCH = 'B'
-} ;
+  OPT_NEGATIVE = 'N',
+  OPT_BRANCH = 'B',
+  OPT_INFINITE = 'F'
+};
 
-enum unreal_x_t {
+enum unreal_x_t
+{
   UNREAL_X_FORMULA = 'f',
   UNREAL_X_AUTOMATON = 'a',
   UNREAL_X_BOTH
 };
 
 static const argp_option options[] = {
-  /**************************************************/
-  { nullptr, 0, nullptr, 0, "Input options:", 1 },
-  {
-    "ins", OPT_INPUT, "PROPS", 0,
-    "comma-separated list of uncontrollable (a.k.a. input) atomic"
-    " propositions", 0
-  },
-  {
-    "outs", OPT_OUTPUT, "PROPS", 0,
-    "comma-separated list of controllable (a.k.a. output) atomic"
-    " propositions", 0
-  },
-  /**************************************************/
-  { nullptr, 0, nullptr, 0, "Fine tuning:", 10 },
-  {
-    "K", OPT_K, "VAL", 0,
-    "final value of K, or unique value if Kmin is not specified", 0
-  },
-  {
-    "Kmin", OPT_Kmin, "VAL", 0,
-    "starting value of K; Kinc MUST be set when using this option", 0
-  },
-  {
-    "Kinc", OPT_Kinc, "VAL", 0,
-    "increment value for K, used when Kmin < K", 0
-  },
-  {//if branch is true we add branch otherwise we transform LTL formula
-    "branch", OPT_BRANCH, "[true|false]", 0,
-    "the way to add negative examples; By adding a branch or transforming the LTL formula", 0
-  },
-  {
-    "negative", OPT_NEGATIVE, "PROPS", 0,
-    "semicolon-separated list of negative examples"
-    " propositions", 0
-  },
-  {
-    "unreal-x", OPT_UNREAL_X, "[formula|automaton|both]", 0,
-    "for unrealizability, either add X's to outputs in the"
-    " input formula, or push outputs one transition forward in"
-    " the automaton; with 'both', two processes are started,"
-    " one for each option (default: "
+    /**************************************************/
+    {nullptr, 0, nullptr, 0, "Input options:", 1},
+    {"ins", OPT_INPUT, "PROPS", 0,
+     "comma-separated list of uncontrollable (a.k.a. input) atomic"
+     " propositions",
+     0},
+    {"outs", OPT_OUTPUT, "PROPS", 0,
+     "comma-separated list of controllable (a.k.a. output) atomic"
+     " propositions",
+     0},
+    /**************************************************/
+    {nullptr, 0, nullptr, 0, "Fine tuning:", 10},
+    {"K", OPT_K, "VAL", 0,
+     "final value of K, or unique value if Kmin is not specified", 0},
+    {"Kmin", OPT_Kmin, "VAL", 0,
+     "starting value of K; Kinc MUST be set when using this option", 0},
+    {"Kinc", OPT_Kinc, "VAL", 0,
+     "increment value for K, used when Kmin < K", 0},
+    {// if branch is true we add branch otherwise we transform LTL formula
+     "branch", OPT_BRANCH, "[true|false]", 0,
+     "the way to add negative examples; By adding a branch or transforming the LTL formula", 0},
+    {"negative", OPT_NEGATIVE, "PROPS", 0,
+     "semicolon-separated list of negative examples"
+     " propositions",
+     0},
+     {"infinite", OPT_INFINITE, "PROPS", 0,
+     "semicolon-separated list of infinite examples"
+     " propositions",
+     0},
+    {"unreal-x", OPT_UNREAL_X, "[formula|automaton|both]", 0,
+     "for unrealizability, either add X's to outputs in the"
+     " input formula, or push outputs one transition forward in"
+     " the automaton; with 'both', two processes are started,"
+     " one for each option (default: "
 #if DEFAULT_UNREAL_X == UNREAL_X_FORMULA
-    "formula"
+     "formula"
 #elif DEFAULT_UNREAL_X == UNREAL_X_AUTOMATON
-    "automaton"
+      "automaton"
 #else
-    "both"
+      "both"
 #endif
-    ").", 0
-  },
+     ").",
+     0},
 
-  /**************************************************/
-  { nullptr, 0, nullptr, 0, "Output options:", 20 },
-  {
-    "check", OPT_CHECK, "[real|unreal|both]", 0,
-    "either check for real, unreal, or both", 0
-  },
-  {
-    "verbose", OPT_VERBOSE, nullptr, 0,
-    "verbose mode, can be repeated for more verbosity", -1
-  },
-  { nullptr, 0, nullptr, 0, nullptr, 0 },
+    /**************************************************/
+    {nullptr, 0, nullptr, 0, "Output options:", 20},
+    {"check", OPT_CHECK, "[real|unreal|both]", 0,
+     "either check for real, unreal, or both", 0},
+    {"verbose", OPT_VERBOSE, nullptr, 0,
+     "verbose mode, can be repeated for more verbosity", -1},
+    {nullptr, 0, nullptr, 0, nullptr, 0},
 };
 
 static const struct argp_child children[] = {
-  // Input format
-  { &finput_argp_headless, 0, nullptr, 0 },
-  //{ &aoutput_o_format_argp, 0, nullptr, 0 },
-  { &misc_argp, 0, nullptr, 0 },
-  { nullptr, 0, nullptr, 0 }
-};
+    // Input format
+    {&finput_argp_headless, 0, nullptr, 0},
+    //{ &aoutput_o_format_argp, 0, nullptr, 0 },
+    {&misc_argp, 0, nullptr, 0},
+    {nullptr, 0, nullptr, 0}};
 
 const char argp_program_doc[] = "\
 Verify realizability for LTL specification.\v\
@@ -157,8 +150,9 @@ static std::vector<std::string> input_aps;
 static std::vector<std::string> output_aps;
 
 static std::vector<std::string> negative_aps;
-
-enum {
+static std::vector<std::string> infinite_aps;
+enum
+{
   CHECK_REAL,
   CHECK_UNREAL,
   CHECK_BOTH
@@ -171,7 +165,7 @@ static bool check_real = true;
 static bool opt_branch = true;
 
 static unsigned opt_K = DEFAULT_K,
-  opt_Kmin = DEFAULT_KMIN, opt_Kinc = DEFAULT_KINC;
+                opt_Kmin = DEFAULT_KMIN, opt_Kinc = DEFAULT_KINC;
 static spot::option_map extra_options;
 
 static double trans_time = 0.0;
@@ -179,552 +173,490 @@ static double merge_time = 0.0;
 static double boolean_states_time = 0.0;
 static double solve_time = 0.0;
 
-int               utils::verbose = 0;
+int utils::verbose = 0;
 utils::voutstream utils::vout;
 
+namespace
+{
 
-namespace {
+  class ltl_processor final : public job_processor
+  {
+  private:
+    spot::translator &trans_;
+    std::vector<std::string> input_aps_;
+    std::vector<std::string> output_aps_;
+    std::vector<std::string> negative_aps_;
+    std::vector<std::string> infinite_aps_;
 
-  class ltl_processor final : public job_processor {
-    private:
-      spot::translator &trans_;
-      std::vector<std::string> input_aps_;
-      std::vector<std::string> output_aps_;
-      std::vector<std::string> negative_aps_;
+  public:
+    ltl_processor(spot::translator &trans,
+                  std::vector<std::string> input_aps_,
+                  std::vector<std::string> output_aps_,
+                  std::vector<std::string> negative_aps_,
+                  std::vector<std::string> infinite_aps_)
+        : trans_(trans), input_aps_(input_aps_), output_aps_(output_aps_), negative_aps_(negative_aps_), infinite_aps_(infinite_aps_)
+    {
+    }
 
-    public:
+    using aut_t = decltype(trans_.run(spot::formula::ff()));
 
-      ltl_processor (spot::translator &trans,
-                     std::vector<std::string> input_aps_,
-                     std::vector<std::string> output_aps_,
-                     std::vector<std::string> negative_aps_
-                     )
-        : trans_ (trans), input_aps_ (input_aps_), output_aps_ (output_aps_),negative_aps_(negative_aps_)  {
-      }
+    // Changes q -> <i', o'> -> q' with saved o to
+    // q -> <i', o> -> {q' saved o}
+    aut_t push_outputs(const aut_t &aut, bdd all_inputs, bdd all_outputs)
+    {
+      auto ret = spot::make_twa_graph(aut->get_dict());
+      ret->copy_acceptance_of(aut);
+      ret->copy_ap_of(aut);
+      ret->prop_copy(aut, spot::twa::prop_set::all());
+      ret->prop_universal(spot::trival::maybe());
 
-      using aut_t = decltype (trans_.run (spot::formula::ff ()));
-
-      // Changes q -> <i', o'> -> q' with saved o to
-      // q -> <i', o> -> {q' saved o}
-      aut_t push_outputs (const aut_t& aut, bdd all_inputs, bdd all_outputs) {
-        auto ret = spot::make_twa_graph (aut->get_dict ());
-        ret->copy_acceptance_of (aut);
-        ret->copy_ap_of (aut);
-        ret->prop_copy (aut, spot::twa::prop_set::all());
-        ret->prop_universal (spot::trival::maybe ());
-
-        static auto cache = utils::make_cache<unsigned> (0u, 0u);
-        const auto build_aut = [&] (unsigned state, bdd saved_o,
-                                    const auto& recurse) {
-          auto cached = cache.get (state, saved_o.id ());
-          if (cached) return *cached;
-          auto ret_state = ret->new_state ();
-          cache (ret_state, state, saved_o.id ());
-          for (auto& e : aut->out (state)) {
-
-            for (auto&& one_input_bdd : minterms_of (e.cond, all_inputs)) {
-              // Pick one satisfying assignment where outputs all have values
-              ret->new_edge (ret_state,
-                             recurse (e.dst,
-                                      bdd_exist (e.cond & one_input_bdd,
-                                                all_inputs),
-                                      recurse),
-                             saved_o & one_input_bdd,
-                             e.acc);
-            }
-          }
-          return ret_state;
-        };
-        build_aut (aut->get_init_state_number (), bddtrue, build_aut);
-        return ret;
-      }
-
-      std::string join(std::vector<std::string> const &strings, std::string delim){
-        if (strings.empty()) {
-          return std::string();
-        }
-        return std::accumulate(strings.begin() + 1, strings.end(), strings[0],
-          [&delim](std::string x, std::string y) {
-          return x + delim + y;
-          }
-          );
-      }
-
-      bool solve_formula (spot::formula f) {
-        spot::process_timer timer;
-        timer.start ();
-
-        spot::stopwatch sw, sw_nospot;
-        bool want_time = true; // Hardcoded
-
-        // To Universal co-Büchi Automaton
-        trans_.set_type(spot::postprocessor::BA);
-        // "Desired characteristics": Small and state-based acceptance (implied by BA).
-        trans_.set_pref(spot::postprocessor::Small |
-                        //spot::postprocessor::Complete | // TODO: We did not need that originally; do we now?
-                        spot::postprocessor::SBAcc);
-
-        if (want_time)
-          sw.start ();
-
-
-        if(!opt_branch) conjuction_examples(f);
-        /*std::string s= "((r0 & grant0 & grant1) & X(!r0))->(grant0)";
-        spot::formula test = spot::parse_formula(s);
-        std::cout << "before test: " << test << '\n';
-        std::cout << "f: " << f << '\n';
-        test = spot::formula::And(std::vector<spot::formula> {f, test});
-        std::cout << "after test: " << test << '\n';*/
-        
-
-        ////////////////////////////////////////////////////////////////////////
-        // Translate the formula to a UcB (Universal co-Büchi)
-        // To do so, negate formula, and convert to a normal Büchi.
-        if (check_real)
-          f = spot::formula::Not (f);
-        else if (opt_unreal_x == UNREAL_X_FORMULA) {
-          // Add X at the outputs
-          auto rec = [this] (auto&& self, spot::formula m) {
-            if (m.is (spot::op::ap) and
-                (std::ranges::find (output_aps_,
-                                    m.ap_name ()) != output_aps_.end ()))
-              return spot::formula::X (m);
-            return m.map ([&] (spot::formula t) { return self (self, t); });
-          };
-          f = f.map ([&] (spot::formula t) { return rec (rec, t); });
-          // Swap I and O.
-          input_aps_.swap (output_aps_);
-        }
-
-  verb_do (1, vout << "Formula: " << f << std::endl);
-        auto aut = trans_.run (&f);
-        //print UCB
-        //spot::print_hoa(std::cout,aut,nullptr);
-        //std::cout<<std::endl;
-
-
-        //transform UCB to add negative examples
-        if(opt_branch && !negative_aps_.empty()){
-          transform_ucb(aut);
-          //add new branches
-          add_negative_branches(aut);
-        }
-
-        
-
-        // Create BDDs for the input and output AP.
-        bdd all_inputs = bddtrue;
-        bdd all_outputs = bddtrue;
-        for (const auto& ap_i : input_aps_)
-        { 
-          unsigned v = aut->register_ap (spot::formula::ap(ap_i));
-          all_inputs &= bdd_ithvar(v);
-        }
-        for (const auto& ap_i : output_aps_)
+      static auto cache = utils::make_cache<unsigned>(0u, 0u);
+      const auto build_aut = [&](unsigned state, bdd saved_o,
+                                 const auto &recurse)
+      {
+        auto cached = cache.get(state, saved_o.id());
+        if (cached)
+          return *cached;
+        auto ret_state = ret->new_state();
+        cache(ret_state, state, saved_o.id());
+        for (auto &e : aut->out(state))
         {
-          unsigned v = aut->register_ap (spot::formula::ap(ap_i));
-          all_outputs &= bdd_ithvar(v);
+
+          for (auto &&one_input_bdd : minterms_of(e.cond, all_inputs))
+          {
+            // Pick one satisfying assignment where outputs all have values
+            ret->new_edge(ret_state,
+                          recurse(e.dst,
+                                  bdd_exist(e.cond & one_input_bdd,
+                                            all_inputs),
+                                  recurse),
+                          saved_o & one_input_bdd,
+                          e.acc);
+          }
         }
+        return ret_state;
+      };
+      build_aut(aut->get_init_state_number(), bddtrue, build_aut);
+      return ret;
+    }
 
-        // If unreal but we haven't pushed outputs yet using X on formula
-        if (not check_real and opt_unreal_x == UNREAL_X_AUTOMATON) {
-          aut = push_outputs (aut, all_inputs, all_outputs);
-          input_aps_.swap (output_aps_);
-          std::swap (all_inputs, all_outputs);
-        }
+    bool solve_formula(spot::formula f)
+    {
+      spot::process_timer timer;
+      timer.start();
 
-        if (want_time) {
-          trans_time = sw.stop ();
-          utils::vout << "Translating formula done in "
-                      << trans_time << " seconds\n";
-          utils::vout << "Automaton has " << aut->num_states ()
-                      << " states and " << aut->num_sets () << " colors\n";
-        }
+      spot::stopwatch sw, sw_nospot;
+      bool want_time = true; // Hardcoded
 
-        ////////////////////////////////////////////////////////////////////////
-        // Preprocess automaton
+      // To Universal co-Büchi Automaton
+      trans_.set_type(spot::postprocessor::BA);
+      // "Desired characteristics": Small and state-based acceptance (implied by BA).
+      trans_.set_pref(spot::postprocessor::Small |
+                      // spot::postprocessor::Complete | // TODO: We did not need that originally; do we now?
+                      spot::postprocessor::SBAcc);
 
-        if (want_time) {
-          sw.start();
-          sw_nospot.start ();
-        }
+      if (want_time)
+        sw.start();
 
-        auto aut_preprocessors_maker = AUT_PREPROCESSOR ();
-        (aut_preprocessors_maker.make (aut, all_inputs, all_outputs, opt_K)) ();
+      if (!opt_branch)
+        conjuction_examples(f, negative_aps_);
+      /*std::string s= "((r0 & grant0 & grant1) & X(!r0))->(grant0)";
+      spot::formula test = spot::parse_formula(s);
+      std::cout << "before test: " << test << '\n';
+      std::cout << "f: " << f << '\n';
+      test = spot::formula::And(std::vector<spot::formula> {f, test});
+      std::cout << "after test: " << test << '\n';*/
 
-        if (want_time) {
-          merge_time = sw.stop();
-          utils::vout << "Preprocessing done in " << merge_time
-                      << " seconds\nDPA has " << aut->num_states()
-                      << " states\n";
-        }
-        verb_do (2, spot::print_hoa(utils::vout, aut, nullptr));
+      ////////////////////////////////////////////////////////////////////////
+      // Translate the formula to a UcB (Universal co-Büchi)
+      // To do so, negate formula, and convert to a normal Büchi.
+      if (check_real)
+        f = spot::formula::Not(f);
+      else if (opt_unreal_x == UNREAL_X_FORMULA)
+      {
+        // Add X at the outputs
+        auto rec = [this](auto &&self, spot::formula m)
+        {
+          if (m.is(spot::op::ap) and
+              (std::ranges::find(output_aps_,
+                                 m.ap_name()) != output_aps_.end()))
+            return spot::formula::X(m);
+          return m.map([&](spot::formula t)
+                       { return self(self, t); });
+        };
+        f = f.map([&](spot::formula t)
+                  { return rec(rec, t); });
+        // Swap I and O.
+        input_aps_.swap(output_aps_);
+      }
+      bool transformed = false;
+      verb_do(1, vout << "Formula: " << f << std::endl);
+      auto aut = trans_.run(&f);
+      // print UCB
+      // spot::print_hoa(std::cout,aut,nullptr);
+      // std::cout<<std::endl;
 
-        ////////////////////////////////////////////////////////////////////////
-        // Boolean states
+      // transform UCB to add negative examples
+      if (opt_branch && !negative_aps_.empty())
+      {
+        transform_ucb(aut);
+        transformed=true;
+        // add new branches
+        add_negative_branches(aut, negative_aps_);
+      }
 
+      if (!infinite_aps_.empty()){
+        if(!transformed)
+          transform_ucb(aut);
+        add_infinite_traces(aut,infinite_aps_);
+      }
+
+      // Create BDDs for the input and output AP.
+      bdd all_inputs = bddtrue;
+      bdd all_outputs = bddtrue;
+      for (const auto &ap_i : input_aps_)
+      {
+        unsigned v = aut->register_ap(spot::formula::ap(ap_i));
+        all_inputs &= bdd_ithvar(v);
+      }
+      for (const auto &ap_i : output_aps_)
+      {
+        unsigned v = aut->register_ap(spot::formula::ap(ap_i));
+        all_outputs &= bdd_ithvar(v);
+      }
+
+      // If unreal but we haven't pushed outputs yet using X on formula
+      if (not check_real and opt_unreal_x == UNREAL_X_AUTOMATON)
+      {
+        aut = push_outputs(aut, all_inputs, all_outputs);
+        input_aps_.swap(output_aps_);
+        std::swap(all_inputs, all_outputs);
+      }
+
+      if (want_time)
+      {
+        trans_time = sw.stop();
+        utils::vout << "Translating formula done in "
+                    << trans_time << " seconds\n";
+        utils::vout << "Automaton has " << aut->num_states()
+                    << " states and " << aut->num_sets() << " colors\n";
+      }
+
+      ////////////////////////////////////////////////////////////////////////
+      // Preprocess automaton
+
+      if (want_time)
+      {
+        sw.start();
+        sw_nospot.start();
+      }
+
+      auto aut_preprocessors_maker = AUT_PREPROCESSOR();
+      (aut_preprocessors_maker.make(aut, all_inputs, all_outputs, opt_K))();
+
+      if (want_time)
+      {
+        merge_time = sw.stop();
+        utils::vout << "Preprocessing done in " << merge_time
+                    << " seconds\nDPA has " << aut->num_states()
+                    << " states\n";
+      }
+      verb_do(2, spot::print_hoa(utils::vout, aut, nullptr));
+
+      ////////////////////////////////////////////////////////////////////////
+      // Boolean states
+
+      if (want_time)
+        sw.start();
+
+      auto boolean_states_maker = BOOLEAN_STATES();
+      vectors::bool_threshold = (boolean_states_maker.make(aut, opt_K))();
+
+      if (want_time)
+      {
+        boolean_states_time = sw.stop();
+        utils::vout << "Computation of boolean states in " << boolean_states_time
+                    /*     */
+                    << "seconds , found " << vectors::bool_threshold << " nonboolean states.\n";
+      }
+
+      std::cout << "AUTOMATA" << std::endl;
+      spot::print_hoa(std::cout, aut, nullptr);
+      std::cout << std::endl;
+      std::cout << "AUTOMATAEND" << std::endl;
+
+      // Special case: only boolean states, so... no useful accepting state.
+      if (vectors::bool_threshold == 0)
+      {
         if (want_time)
-          sw.start ();
+          utils::vout << "Time disregarding Spot translation: " << sw_nospot.stop() << " seconds\n";
+        return true;
+      }
 
-        auto boolean_states_maker = BOOLEAN_STATES ();
-        vectors::bool_threshold = (boolean_states_maker.make (aut, opt_K)) ();
+      ////////////////////////////////////////////////////////////////////////
+      // Build S^K_N game, solve it.
 
-        if (want_time) {
-          boolean_states_time = sw.stop ();
-          utils::vout << "Computation of boolean states in " << boolean_states_time
-            /*     */ << "seconds , found " << vectors::bool_threshold << " nonboolean states.\n";
-        }
+      if (want_time)
+        sw.start();
 
-        std::cout<< "AUTOMATA"<<std::endl;
-        spot::print_hoa(std::cout, aut, nullptr);
-        std::cout<<std::endl;
-        std::cout<< "AUTOMATAEND" <<std::endl;
+      // Compute how many boolean states will actually be put in bitsets.
+      constexpr auto max_bools_in_bitsets = vectors::nbitsets_to_nbools(STATIC_MAX_BITSETS);
+      auto nbitsetbools = aut->num_states() - vectors::bool_threshold;
+      if (nbitsetbools > max_bools_in_bitsets)
+      {
+        verb_do(1, vout << "Warning: bitsets not large enough, using regular vectors for some Boolean states.\n"
+                        /*   */
+                        << "\tTotal # of Boolean-for-bitset states: " << nbitsetbools
+                        /*   */
+                        << ", max: " << max_bools_in_bitsets << std::endl);
+        nbitsetbools = max_bools_in_bitsets;
+      }
 
-        // Special case: only boolean states, so... no useful accepting state.
-        if (vectors::bool_threshold == 0) {
-          if (want_time)
-            utils::vout << "Time disregarding Spot translation: " << sw_nospot.stop () << " seconds\n";
-          return true;
-        }
+      constexpr auto STATIC_ARRAY_CAP_MAX =
+          vectors::traits<vectors::ARRAY_IMPL, VECTOR_ELT_T>::capacity_for(STATIC_ARRAY_MAX);
 
+      // Maximize usage of the nonbool implementation
+      auto nonbools = aut->num_states() - nbitsetbools;
+      size_t actual_nonbools = (nonbools <= STATIC_ARRAY_CAP_MAX) ? vectors::traits<vectors::ARRAY_IMPL, VECTOR_ELT_T>::capacity_for(nonbools) : vectors::traits<vectors::VECTOR_IMPL, VECTOR_ELT_T>::capacity_for(nonbools);
+      if (actual_nonbools >= aut->num_states())
+        nbitsetbools = 0;
+      else
+        nbitsetbools -= (actual_nonbools - nonbools);
 
-        ////////////////////////////////////////////////////////////////////////
-        // Build S^K_N game, solve it.
+      vectors::bitset_threshold = aut->num_states() - nbitsetbools;
 
-        if (want_time)
-          sw.start ();
+      utils::vout << "Bitset threshold set at " << vectors::bitset_threshold << "\n";
 
-        // Compute how many boolean states will actually be put in bitsets.
-        constexpr auto max_bools_in_bitsets = vectors::nbitsets_to_nbools (STATIC_MAX_BITSETS);
-        auto nbitsetbools = aut->num_states () - vectors::bool_threshold;
-        if (nbitsetbools > max_bools_in_bitsets) {
-          verb_do (1, vout << "Warning: bitsets not large enough, using regular vectors for some Boolean states.\n"
-                   /*   */ << "\tTotal # of Boolean-for-bitset states: " << nbitsetbools
-                   /*   */ << ", max: " << max_bools_in_bitsets << std::endl);
-          nbitsetbools = max_bools_in_bitsets;
-        }
+#define UNREACHABLE [](int x) { assert(false); }
 
-        constexpr auto STATIC_ARRAY_CAP_MAX =
-          vectors::traits<vectors::ARRAY_IMPL, VECTOR_ELT_T>::capacity_for (STATIC_ARRAY_MAX);
+      bool realizable = false;
 
-        // Maximize usage of the nonbool implementation
-        auto nonbools = aut->num_states () - nbitsetbools;
-        size_t actual_nonbools = (nonbools <= STATIC_ARRAY_CAP_MAX) ?
-          vectors::traits<vectors::ARRAY_IMPL, VECTOR_ELT_T>::capacity_for (nonbools) :
-          vectors::traits<vectors::VECTOR_IMPL, VECTOR_ELT_T>::capacity_for (nonbools);
-        if (actual_nonbools >= aut->num_states ())
-          nbitsetbools = 0;
-        else
-          nbitsetbools -= (actual_nonbools - nonbools);
-
-        vectors::bitset_threshold = aut->num_states () - nbitsetbools;
-
-  utils::vout << "Bitset threshold set at " << vectors::bitset_threshold << "\n";
-
-#define UNREACHABLE [] (int x) { assert (false); }
-
-        bool realizable = false;
-
-        if (actual_nonbools <= STATIC_ARRAY_CAP_MAX) { // Array & Bitsets
-          static_switch_t<STATIC_ARRAY_CAP_MAX> {} (
-            [&] (auto vnonbools) {
-              static_switch_t<STATIC_MAX_BITSETS> {} (
-                [&] (auto vbitsets) {
-                  auto skn = K_BOUNDED_SAFETY_AUT_IMPL<
-                    downsets::ARRAY_AND_BITSET_DOWNSET_IMPL<
-                      vectors::X_and_bitset<
-                        vectors::ARRAY_IMPL<VECTOR_ELT_T, vnonbools.value>,
-                        vbitsets.value>>>
-                    (aut, opt_Kmin, opt_K, opt_Kinc, all_inputs, all_outputs);
-                  realizable = skn.solve ();
-                },
-                UNREACHABLE,
-                vectors::nbools_to_nbitsets (nbitsetbools));
+      if (actual_nonbools <= STATIC_ARRAY_CAP_MAX)
+      { // Array & Bitsets
+        static_switch_t<STATIC_ARRAY_CAP_MAX>{}(
+            [&](auto vnonbools)
+            {
+              static_switch_t<STATIC_MAX_BITSETS>{}(
+                  [&](auto vbitsets)
+                  {
+                    auto skn = K_BOUNDED_SAFETY_AUT_IMPL<
+                        downsets::ARRAY_AND_BITSET_DOWNSET_IMPL<
+                            vectors::X_and_bitset<
+                                vectors::ARRAY_IMPL<VECTOR_ELT_T, vnonbools.value>,
+                                vbitsets.value>>>(aut, opt_Kmin, opt_K, opt_Kinc, all_inputs, all_outputs);
+                    realizable = skn.solve();
+                  },
+                  UNREACHABLE,
+                  vectors::nbools_to_nbitsets(nbitsetbools));
             },
             UNREACHABLE,
             actual_nonbools);
-        }
-        else {                                  // Vectors & Bitsets
-          static_switch_t<STATIC_MAX_BITSETS> {} (
-            [&] (auto vbitsets) {
+      }
+      else
+      { // Vectors & Bitsets
+        static_switch_t<STATIC_MAX_BITSETS>{}(
+            [&](auto vbitsets)
+            {
               auto skn = K_BOUNDED_SAFETY_AUT_IMPL<
-                downsets::VECTOR_AND_BITSET_DOWNSET_IMPL<
-                  vectors::X_and_bitset<
-                    vectors::VECTOR_IMPL<VECTOR_ELT_T>,
-                    vbitsets.value>>>
-                (aut, opt_Kmin, opt_K, opt_Kinc, all_inputs, all_outputs);
-              realizable = skn.solve ();
+                  downsets::VECTOR_AND_BITSET_DOWNSET_IMPL<
+                      vectors::X_and_bitset<
+                          vectors::VECTOR_IMPL<VECTOR_ELT_T>,
+                          vbitsets.value>>>(aut, opt_Kmin, opt_K, opt_Kinc, all_inputs, all_outputs);
+              realizable = skn.solve();
             },
             UNREACHABLE,
-            vectors::nbools_to_nbitsets (nbitsetbools));
-        }
-
-        if (want_time) {
-          solve_time = sw.stop ();
-          utils::vout << "Safety game solved in " << solve_time << " seconds, returning " << realizable << "\n";
-          utils::vout << "Time disregarding Spot translation: " << sw_nospot.stop () << " seconds\n";
-        }
-
-        timer.stop ();
-
-        return realizable;
+            vectors::nbools_to_nbitsets(nbitsetbools));
       }
 
-      int process_formula (spot::formula f, const char *, int) override {
-        return solve_formula (f);
+      if (want_time)
+      {
+        solve_time = sw.stop();
+        utils::vout << "Safety game solved in " << solve_time << " seconds, returning " << realizable << "\n";
+        utils::vout << "Time disregarding Spot translation: " << sw_nospot.stop() << " seconds\n";
       }
 
-      void transform_ucb (aut_t& aut){
-          unsigned new_ini=aut->num_states ();
-          unsigned old_ini=aut->get_init_state_number();
-          aut->new_state();
-          for (auto& e : aut->out (old_ini)) {
-            aut->new_edge (new_ini,e.dst,e.cond, e.acc);
-          }
-          aut -> set_init_state( new_ini );
-      }
+      timer.stop();
 
-      /*
-      given a trace and a set of inputs or outputs separeted by comma ',', 
-      split it and push each input or output in the vector trace
-      */
-      void example_parse(std::vector<std::vector<std::string>>& trace, std::string& ios){
-        size_t pos=0;
-        std::vector<std::string> io;
-        std::string token;
-        while ((pos = ios.find(',')) != std::string::npos) {
-          token= ios.substr(0,pos);
-          token.erase (remove_if (token.begin(), token.end(), isspace), token.end());
-          io.push_back (token);
-          ios.erase(0, pos + 1);
-        }
-        ios.erase (remove_if (ios.begin(), ios.end(), isspace), ios.end());
-        io.push_back (ios);
-        trace.push_back(io);
-      }
-
-      void get_trace(std::vector<std::vector<std::string>>& trace, const std::string& example){
-        std::string move;
-        std::stringstream ex(example); 
-        while ( std::getline (ex, move, '#')) {// for pair {inputs}{ouputs}
-            unsigned input_begin = move.find('{');
-            unsigned input_end = move.find('}');
-            std::string strNew = move.substr(input_begin+1,input_end-input_begin-1);
-            example_parse(trace, strNew);
-            strNew = move.substr(input_end+2,move.length()-input_end-3);
-            example_parse(trace, strNew);
-        }
-      }
-
-      void conjuction_examples (spot::formula& f){
-        std::vector<std::vector<std::string>> trace;
-        for ( const std::string& example : negative_aps_ )
-        { 
-          trace.clear();
-          get_trace(trace, example);
-          std::string formula_str = "";
-          for(unsigned int i = 0; i < trace.size()-1; i++){//the last is different
-            if(i%2==0){
-              formula_str +="(";
-              formula_str +=std::string(i/2, 'X');// add NEXT operator
-              formula_str += "(";
-            }
-            else{formula_str += " & ";} 
-            formula_str += join(trace[i], " & ");
-            if( i== trace.size()-2 ) {formula_str +="))";}
-            else if(i%2!=0) {formula_str +=")) & ";}
-          }
-          formula_str = "(" + formula_str +") -> !(" + std::string((trace.size()-1)/2, 'X')+ join(trace[trace.size()-1], " & ") +")";
-          spot::formula formula = spot::parse_formula(formula_str);
-          std::cout << "before formula: " << formula << '\n';
-          std::cout << "f: " << f << '\n';
-          f = spot::formula::And(std::vector<spot::formula> {f, formula});
-          std::cout << "after formula: " << f << '\n';
-      }
+      return realizable;
     }
 
-      void add_negative_branches (aut_t &aut){
-        std::vector<std::vector<std::string>> trace;
-        for ( const std::string& example : negative_aps_ )
-        { 
-          //std::stringstream ex(example); 
-          trace.clear();
-          get_trace(trace,example);
-          add_branch(aut, trace);
-        }
-      }
-      
-      //trace=[[i1,i2,...],[o1,o2,o3,...],[i,...],[o,....]]
-      void add_branch(aut_t &aut, std::vector<std::vector<std::string>>& trace){
-        unsigned root = aut->get_init_state_number();
-        std::vector<std::string> io;
-        bool exist = false;
-        bdd b;
-        for(unsigned int i = 0; i < trace.size()-1; i+=2){
-          bdd res=bddtrue;
-          io=trace[i];
-          io.insert(io.end(), trace[i+1].begin(), trace[i+1].end()); //combine input and ouput
-          for(unsigned int j = 0; j < io.size(); j++){
-            spot::formula formula = spot::parse_formula(io[j]);
-            b = formula_to_bdd(formula, aut->get_dict(), aut);
-            res = res & b;
-          }
-          for (auto& e : aut->out (root)) { //avoid repetition prefix
-            if(e.cond == res) {
-              root = e.dst;
-              exist = true;
-              break;
-            }
-          }
-          if (! exist){
-            unsigned dst = aut->new_state();
-            aut->new_edge (root,dst,res);
-            root = dst;
-          }
-          else exist = false;
-        }
-        //last state will loop on itself
-        aut->new_acc_edge (root,root,bddtrue);
-      }
+    int process_formula(spot::formula f, const char *, int) override
+    {
+      return solve_formula(f);
+    }
   };
 }
 
 static int
-parse_opt (int key, char *arg, struct argp_state *) {
+parse_opt(int key, char *arg, struct argp_state *)
+{
   // Called from C code, so should not raise any exception.
   BEGIN_EXCEPTION_PROTECT;
 
-  switch (key) {
-    case OPT_INPUT: {
-      std::istringstream aps (arg);
-      std::string ap;
+  switch (key)
+  {
+  case OPT_INPUT:
+  {
+    std::istringstream aps(arg);
+    std::string ap;
 
-      while (std::getline (aps, ap, ',')) {
-        ap.erase (remove_if (ap.begin (), ap.end (), isspace), ap.end ());
-        input_aps.push_back (ap);
-      }
-
-      break;
+    while (std::getline(aps, ap, ','))
+    {
+      ap.erase(remove_if(ap.begin(), ap.end(), isspace), ap.end());
+      input_aps.push_back(ap);
     }
 
-    case OPT_OUTPUT: {
-      std::istringstream aps (arg);
-      std::string ap;
-
-      while (std::getline (aps, ap, ',')) {
-        ap.erase (remove_if (ap.begin (), ap.end (), isspace), ap.end ());
-        output_aps.push_back (ap);
-      }
-
-      break;
-    }
-
-    case OPT_UNREAL_X: {
-      boost::algorithm::to_lower (arg);
-      if (arg == "formula"sv)
-        opt_unreal_x = UNREAL_X_FORMULA;
-      else if (arg == "automaton"sv)
-        opt_unreal_x = UNREAL_X_AUTOMATON;
-      else if (arg == "both"sv)
-        opt_unreal_x = UNREAL_X_BOTH;
-      else
-        error (3, 0, "Should specify formula, automaton, or both.");
-      break;
-    }
-
-    case OPT_CHECK: {
-      boost::algorithm::to_lower (arg);
-      if (arg == "real"sv)
-        opt_check = CHECK_REAL;
-      else if (arg == "unreal"sv)
-        opt_check = CHECK_UNREAL;
-      else if (arg == "both"sv)
-        opt_check = CHECK_BOTH;
-      else
-        error (3, 0, "Should specify real, unreal, or both.");
-      break;
-    }
-
-    case OPT_K: {
-      opt_K = atoi (arg);
-      if (opt_K == 0)
-        error (3, 0, "K cannot be 0 or not a number.");
-      break;
-    }
-
-    case OPT_Kmin: {
-      opt_Kmin = atoi (arg);
-      if (opt_Kmin == 0)
-        error (3, 0, "Kmin cannot be 0 or not a number.");
-      break;
-    }
-
-    case OPT_Kinc: {
-      opt_Kinc = atoi (arg);
-      if (opt_Kinc == 0)
-        error (3, 0, "Kinc cannot be 0 or not a number.");
-      break;
-    }
-
-    case OPT_VERBOSE: {
-      ++utils::verbose;
-      break;
-    }
-
-    case OPT_BRANCH: {
-      boost::algorithm::to_lower (arg);
-      if (arg == "true"sv)
-        opt_branch = true;
-      else if (arg == "false"sv)
-        opt_branch = false;
-      else
-        error (3, 0, "Should specify true, or false.");
-      break;
-    }
-
-    case OPT_NEGATIVE: {
-      std::istringstream aps (arg);
-      std::string ap;
-
-      while (std::getline (aps, ap, ';')) {
-        ap.erase (remove_if (ap.begin (), ap.end (), isspace), ap.end ());
-        negative_aps.push_back (ap);
-      }
-
-      break;
-    }
-
-    case 'x': {
-      const char *opt = extra_options.parse_options (arg);
-
-      if (opt)
-        error (2, 0, "failed to parse --options near '%s'", opt);
-    }
     break;
+  }
+
+  case OPT_OUTPUT:
+  {
+    std::istringstream aps(arg);
+    std::string ap;
+
+    while (std::getline(aps, ap, ','))
+    {
+      ap.erase(remove_if(ap.begin(), ap.end(), isspace), ap.end());
+      output_aps.push_back(ap);
+    }
+
+    break;
+  }
+
+  case OPT_UNREAL_X:
+  {
+    boost::algorithm::to_lower(arg);
+    if (arg == "formula"sv)
+      opt_unreal_x = UNREAL_X_FORMULA;
+    else if (arg == "automaton"sv)
+      opt_unreal_x = UNREAL_X_AUTOMATON;
+    else if (arg == "both"sv)
+      opt_unreal_x = UNREAL_X_BOTH;
+    else
+      error(3, 0, "Should specify formula, automaton, or both.");
+    break;
+  }
+
+  case OPT_CHECK:
+  {
+    boost::algorithm::to_lower(arg);
+    if (arg == "real"sv)
+      opt_check = CHECK_REAL;
+    else if (arg == "unreal"sv)
+      opt_check = CHECK_UNREAL;
+    else if (arg == "both"sv)
+      opt_check = CHECK_BOTH;
+    else
+      error(3, 0, "Should specify real, unreal, or both.");
+    break;
+  }
+
+  case OPT_K:
+  {
+    opt_K = atoi(arg);
+    if (opt_K == 0)
+      error(3, 0, "K cannot be 0 or not a number.");
+    break;
+  }
+
+  case OPT_Kmin:
+  {
+    opt_Kmin = atoi(arg);
+    if (opt_Kmin == 0)
+      error(3, 0, "Kmin cannot be 0 or not a number.");
+    break;
+  }
+
+  case OPT_Kinc:
+  {
+    opt_Kinc = atoi(arg);
+    if (opt_Kinc == 0)
+      error(3, 0, "Kinc cannot be 0 or not a number.");
+    break;
+  }
+
+  case OPT_VERBOSE:
+  {
+    ++utils::verbose;
+    break;
+  }
+
+  case OPT_BRANCH:
+  {
+    boost::algorithm::to_lower(arg);
+    if (arg == "true"sv)
+      opt_branch = true;
+    else if (arg == "false"sv)
+      opt_branch = false;
+    else
+      error(3, 0, "Should specify true, or false.");
+    break;
+  }
+
+  case OPT_NEGATIVE:
+  {
+    std::istringstream aps(arg);
+    std::string ap;
+
+    while (std::getline(aps, ap, ';'))
+    {
+      ap.erase(remove_if(ap.begin(), ap.end(), isspace), ap.end());
+      negative_aps.push_back(ap);
+    }
+
+    break;
+  }
+
+  case OPT_INFINITE:
+  {
+    std::istringstream aps(arg);
+    std::string ap;
+
+    while (std::getline(aps, ap, ';'))
+    {
+      ap.erase(remove_if(ap.begin(), ap.end(), isspace), ap.end());
+      infinite_aps.push_back(ap);
+    }
+
+    break;
+  }
+
+  case 'x':
+  {
+    const char *opt = extra_options.parse_options(arg);
+
+    if (opt)
+      error(2, 0, "failed to parse --options near '%s'", opt);
+  }
+  break;
   }
 
   END_EXCEPTION_PROTECT;
   return 0;
 }
 
-void terminate (int signum) {
-  if (getpgid (0) == getpid ()) { // Main process
-    signal (SIGTERM, SIG_IGN);
-    kill (0, SIGTERM);
-    while (wait (NULL) != -1)
+void terminate(int signum)
+{
+  if (getpgid(0) == getpid())
+  { // Main process
+    signal(SIGTERM, SIG_IGN);
+    kill(0, SIGTERM);
+    while (wait(NULL) != -1)
       /* no body */;
   }
   else
-    _exit (3);
+    _exit(3);
 }
 
-int main (int argc, char **argv) {
+int main(int argc, char **argv)
+{
   struct sigaction action;
-  memset (&action, 0, sizeof(struct sigaction));
+  memset(&action, 0, sizeof(struct sigaction));
   action.sa_handler = terminate;
-  sigaction (SIGTERM, &action, NULL);
+  sigaction(SIGTERM, &action, NULL);
 
-  return protected_main (argv, [&] {
+  return protected_main(argv, [&]
+                        {
     // These options play a role in twaalgos.
     extra_options.set ("simul", 0);
     extra_options.set ("ba-simul", 0);
@@ -744,7 +676,7 @@ int main (int argc, char **argv) {
     // not measured in our timings.
     spot::bdd_dict_ptr dict = spot::make_bdd_dict ();
     spot::translator trans (dict, &extra_options);
-    ltl_processor processor (trans, input_aps, output_aps,negative_aps);
+    ltl_processor processor (trans, input_aps, output_aps,negative_aps, infinite_aps);
 
     // Diagnose unused -x options
     extra_options.report_unused_options ();
@@ -796,6 +728,5 @@ int main (int argc, char **argv) {
       }
     }
     std::cout << "UNKNOWN\n";
-    return 3;
-  });
+    return 3; });
 }
