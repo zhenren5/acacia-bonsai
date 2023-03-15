@@ -167,10 +167,11 @@ unsigned add_edge(spot::twa_graph_ptr &aut, unsigned root, bdd exist_cond, unsig
             break;
         }
     }
-    if (!exist || dest != NULL_VALUE) //if destination is specified we go to the dest
-    {   
-        if(dest == NULL_VALUE) dest=aut->new_state();
-        
+    if (!exist || dest != NULL_VALUE) // if destination is specified we go to the dest
+    {
+        if (dest == NULL_VALUE)
+            dest = aut->new_state();
+
         aut->new_edge(root, dest, exist_cond);
         root = dest;
     }
@@ -204,10 +205,15 @@ unsigned add_branch(spot::twa_graph_ptr &aut, unsigned init, std::vector<std::ve
     unsigned root = init;
     bool exist = false;
     bdd res;
+    bool init_loop = false;
+    bdd add_bdd;
+    bdd add_sink;
+    bdd sink_bdd;
+
     // unsigned end = loop ? trace.size() - 3:trace.size() - 1; //loop trace will end one state before to loop back
-    for (int i = 0; i < trace.size() ; i += 2)
+    for (int i = 0; i < trace.size(); i += 2)
     {
-        std::cout<<trace.size() <<std::endl;
+        std::cout << trace.size() << std::endl;
         std::vector<std::string> in = trace[i];
         std::vector<std::string> out = trace[i + 1];
 
@@ -219,35 +225,52 @@ unsigned add_branch(spot::twa_graph_ptr &aut, unsigned init, std::vector<std::ve
         if (!negative)
         { // in no negative examples we need to reject unwilling pathes
             // if same condition but different out
+            sink_bdd = in_cond & diff_out_cond;
             add_edge(aut, root, in_cond & diff_out_cond, sink);
+        }
+        if (init == aut->get_init_state_number())
+        { // if
+            // Do not add loop on init state because it can make the trace incorrect
+            // so we add an additional input/output path
+            if (i == 0)
+            {
+                init_loop = true;
+                add_bdd = res;
+                add_sink = sink_bdd;
+            }
+            else if (i == 2)
+            { // loop on the second state
+                init = root;
+            }
         }
         // follow the example trace
         if (loop && i == trace.size() - 2)
         { // if we're on the last state of the loop we go back to the starting state
-            if(init==root && root==aut->get_init_state_number()){//if we want to create a loop on initial state
-                //it's forbidden because it can make the trace incorrect
+            if (init_loop)
+            { // if we want to create a loop on initial state
+                // it's forbidden because it can make the trace incorrect so we add an additional input/output path
                 unsigned new_state = aut->new_state();
-                root=add_edge(aut, root, res, new_state);
-                init = root;
-                add_edge(aut, root, in_cond & diff_out_cond, sink);
+                root = add_edge(aut, root, res, new_state);
+                res = add_bdd;
+                add_edge(aut, root, add_sink, sink);
+                init = i == 0 ? root : init;
             }
-            
+
             add_edge(aut, root, res, init);
-            std::cout << "add edge to loop"<<res<<" to iinit"<<sink<<std::endl;
+            std::cout << "add edge to loop" << res << " to iinit" << sink << std::endl;
         }
-        else{
-            root = add_edge(aut, root, res);
-            std::cout << "add edge normal"<<res<<std::endl;}
+        else
+        {
+            unsigned dst = loop ? aut->new_state() : NULL_VALUE;
+            root = add_edge(aut, root, res, dst);
+            std::cout << "add edge normal" << res << std::endl;
+        }
     }
-    std::cout<<"end"<<root<<std::endl;
     if (negative) // last state will loop on itself
         aut->new_acc_edge(root, root, bddtrue);
 
-    std::cout<<"end"<<root<<std::endl;
-
     return root;
 }
-
 
 void add_negative_branches(spot::twa_graph_ptr &aut, std::vector<std::string> &negative_aps_)
 {
@@ -258,18 +281,20 @@ void add_negative_branches(spot::twa_graph_ptr &aut, std::vector<std::string> &n
         // std::stringstream ex(example);
         trace.clear();
         get_trace(trace, example);
-        add_branch(aut,ini, trace);
+        add_branch(aut, ini, trace);
     }
 }
-void print_trace(const std::vector<std::vector<std::string>> &trace) {
-  for (auto &vec : trace) {
-    for (auto &str : vec) {
-      std::cout << str << " ";
+void print_trace(const std::vector<std::vector<std::string>> &trace)
+{
+    for (auto &vec : trace)
+    {
+        for (auto &str : vec)
+        {
+            std::cout << str << " ";
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
-  }
 }
-
 
 // infinite trace: {ui}{uo}#*{vi}{vo}
 
@@ -277,16 +302,16 @@ void add_infinite_traces(spot::twa_graph_ptr &aut, std::vector<std::string> &inf
 {
     std::vector<std::vector<std::string>> trace;
     std::vector<std::vector<std::string>> infinite_trace;
-    unsigned ini = aut->get_init_state_number();
+    unsigned ini;
     for (const std::string &example : infinite_aps_)
     {
         // std::stringstream ex(example);
         trace.clear();
         infinite_trace.clear();
+        ini = aut->get_init_state_number();
         get_trace(trace, example, &infinite_trace);
 
-        ini = add_branch(aut, ini, trace,false,false);
-        add_branch(aut, ini, infinite_trace,false, true);
+        ini = add_branch(aut, ini, trace, false, false);
+        add_branch(aut, ini, infinite_trace, false, true);
     }
-
 }
