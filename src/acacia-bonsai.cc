@@ -260,13 +260,7 @@ namespace
 
       if (!opt_branch)
         conjuction_examples(f, negative_aps_);
-      /*std::string s= "((r0 & grant0 & grant1) & X(!r0))->(grant0)";
-      spot::formula test = spot::parse_formula(s);
-      std::cout << "before test: " << test << '\n';
-      std::cout << "f: " << f << '\n';
-      test = spot::formula::And(std::vector<spot::formula> {f, test});
-      std::cout << "after test: " << test << '\n';*/
-
+    
       ////////////////////////////////////////////////////////////////////////
       // Translate the formula to a UcB (Universal co-Büchi)
       // To do so, negate formula, and convert to a normal Büchi.
@@ -289,27 +283,8 @@ namespace
         // Swap I and O.
         input_aps_.swap(output_aps_);
       }
-      bool transformed = false;
       verb_do(1, vout << "Formula: " << f << std::endl);
       auto aut = trans_.run(&f);
-      // print UCB
-      // spot::print_hoa(std::cout,aut,nullptr);
-      // std::cout<<std::endl;
-
-      // transform UCB to add negative examples
-      if (opt_branch && !negative_aps_.empty())
-      {
-        transform_ucb(aut);
-        transformed=true;
-        // add new branches
-        add_negative_branches(aut, negative_aps_);
-      }
-
-      if (!infinite_aps_.empty()){
-        if(!transformed)
-          transform_ucb(aut);
-        add_infinite_traces(aut,infinite_aps_);
-      }
 
       // Create BDDs for the input and output AP.
       bdd all_inputs = bddtrue;
@@ -323,6 +298,24 @@ namespace
       {
         unsigned v = aut->register_ap(spot::formula::ap(ap_i));
         all_outputs &= bdd_ithvar(v);
+      }
+
+      bool transformed = false;
+      // transform UCB for adding negative examples
+      if (opt_branch && !negative_aps_.empty())
+      {
+        transform_ucb(aut);
+        transformed=true;
+        // add new branches
+        add_negative_branches(aut, negative_aps_);
+        std::cout << "negative examples added" <<std::endl;
+      }
+
+      if (!infinite_aps_.empty()){
+        if(!transformed)
+          transform_ucb(aut);
+        add_infinite_traces(aut,infinite_aps_);
+        std::cout << "infinite examples added" <<std::endl;
       }
 
       // If unreal but we haven't pushed outputs yet using X on formula
@@ -341,7 +334,7 @@ namespace
         utils::vout << "Automaton has " << aut->num_states()
                     << " states and " << aut->num_sets() << " colors\n";
       }
-
+      //spot::print_hoa(std::cout, aut, nullptr);
       ////////////////////////////////////////////////////////////////////////
       // Preprocess automaton
 
