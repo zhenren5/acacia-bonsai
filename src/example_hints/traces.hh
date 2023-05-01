@@ -146,7 +146,7 @@ void conjuction_examples(spot::formula &f, std::vector<std::string> &negative_ap
                 formula_str += ")) & ";
             }
         }
-        formula_str = "(" + formula_str + ") -> !(" + std::string((trace.size() - 1) / 2, 'X') + join(trace[trace.size() - 1], " & ") + ")";
+        formula_str = "(" + formula_str + ") -> "+std::string((trace.size() - 1) / 2, 'X')+"!("  + join(trace[trace.size() - 1], " & ") + ")";
         spot::formula formula = spot::parse_formula(formula_str);
         std::cout << "before formula: " << formula << '\n';
         std::cout << "f: " << f << '\n';
