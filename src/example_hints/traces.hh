@@ -146,7 +146,7 @@ void conjuction_examples(spot::formula &f, std::vector<std::string> &negative_ap
                 formula_str += ")) & ";
             }
         }
-        formula_str = "(" + formula_str + ") -> "+std::string((trace.size() - 1) / 2, 'X')+"!("  + join(trace[trace.size() - 1], " & ") + ")";
+        formula_str = "(" + formula_str + ") -> " + std::string((trace.size() - 1) / 2, 'X') + "!(" + join(trace[trace.size() - 1], " & ") + ")";
         spot::formula formula = spot::parse_formula(formula_str);
         std::cout << "before formula: " << formula << '\n';
         std::cout << "f: " << f << '\n';
@@ -160,14 +160,21 @@ unsigned add_edge(spot::twa_graph_ptr &aut, unsigned root, bdd exist_cond, unsig
     bool exist = false;
     for (auto &e : aut->out(root))
     { // avoid repetition prefix
-        if (e.cond == exist_cond && dest == NULL_VALUE)
+        if (e.dst > aut->get_init_state_number() && ((e.cond << exist_cond) == bddtrue) && dest == NULL_VALUE && e.dst != e.src)
+        { // test whether the condition can be combined to one
+            root = e.dst;
+            exist = true;
+            break;
+        }
+        else if (e.dst > aut->get_init_state_number() && ((e.cond >> exist_cond) == bddtrue) && dest == NULL_VALUE && e.dst != e.src) // test whether the condition can be combined to one
         {
+            e.cond = exist_cond; // exist_cond is more general than e.cond
             root = e.dst;
             exist = true;
             break;
         }
     }
-    if (!exist || dest != NULL_VALUE) // if destination is specified we go to the dest
+    if (!exist) // if destination is specified we go to the dest
     {
         if (dest == NULL_VALUE)
             dest = aut->new_state();
